@@ -1,14 +1,10 @@
 """
 Módulo Analyzer de PhoenixGCode.
-
-Responsable de inspeccionar un Document y su ExecutionTimeline para generar
-índices de acceso rápido y extraer metadatos analíticos clave (capas, movimiento inicial,
-última extrusión, etc.).
 """
 
 import re
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Dict
 
 from phoenixgcode.model.document import Document
 from phoenixgcode.model.command import MoveCommand, CommentCommand, CommandType
@@ -21,18 +17,6 @@ from phoenixgcode.analyzer.command_index import CommandIndex
 
 @dataclass(frozen=True, slots=True)
 class AnalysisResult:
-    """
-    Contenedor principal con todos los índices y metadatos calculados durante el análisis.
-    
-    Attributes:
-        layer_index: Índice de capas e información de rangos.
-        z_index: Índice de alturas Z.
-        snapshot_index: Mapeo O(1) de snapshots por línea y por comando.
-        command_index: Clasificación de comandos por tipo.
-        first_extrusion_command_index: Índice del primer movimiento que extruye filamento.
-        last_extrusion_command_index: Índice del último movimiento que extruye filamento.
-        max_z_height: Altura máxima Z alcanzada en la impresión.
-    """
     layer_index: LayerIndex
     z_index: ZIndex
     snapshot_index: SnapshotIndex
@@ -43,30 +27,13 @@ class AnalysisResult:
 
 
 class GCodeAnalyzer:
-    """
-    Analizador estático e interpretativo de G-code.
-
-    Realiza una sola pasada sobre el Document y el ExecutionTimeline para 
-    poblar todos los índices analíticos requeridos.
-    """
-
-    # Expresiones regulares para detectar etiquetas de capa de slicers populares (Cura, Prusa, Orca, etc.)
+    # Regex para buscar en el texto original (raw_text) que incluye el ';'
     _LAYER_COMMENT_RE = re.compile(
         r";\s*(?:LAYER|layer|BEFORE_LAYER_CHANGE|AFTER_LAYER_CHANGE)[:\s]*(\d+)",
         re.IGNORECASE
     )
 
     def analyze(self, document: Document, timeline: ExecutionTimeline) -> AnalysisResult:
-        """
-        Analiza un Document y su ExecutionTimeline construyendo los índices en una sola pasada.
-
-        Args:
-            document: El documento G-code parseado.
-            timeline: La línea de tiempo de ejecución simula por Interpreter.
-
-        Returns:
-            AnalysisResult con todos los índices construidos y metadatos clave.
-        """
         layer_idx_map: Dict[int, LayerInfo] = {}
         z_to_cmds: Dict[float, List[int]] = {}
         by_line_snap: Dict[int, ExecutionSnapshot] = {}
@@ -78,7 +45,7 @@ class GCodeAnalyzer:
         last_extrusion_idx: Optional[int] = None
         max_z: float = 0.0
 
-        current_layer_num = 0
+        current_layer_num = 1
         layer_start_cmd_idx = 0
         layer_start_line = document[0].line_number if len(document) > 0 else 1
         current_layer_z = 0.0
@@ -89,7 +56,6 @@ class GCodeAnalyzer:
             cmd = document[i]
             snap = timeline.snapshots[i] if i < len(timeline.snapshots) else None
 
-            # 1. Poblar SnapshotIndex
             if snap:
                 by_line_snap[cmd.line_number] = snap
                 by_cmd_snap[i] = snap
@@ -99,7 +65,6 @@ class GCodeAnalyzer:
             else:
                 current_z = 0.0
 
-            # 2. Poblar CommandIndex
             cmd_type = cmd.command_type
             if cmd_type not in by_type_cmds:
                 by_type_cmds[cmd_type] = []
@@ -108,39 +73,34 @@ class GCodeAnalyzer:
             if isinstance(cmd, CommentCommand) or cmd.comment:
                 comment_lines.append(cmd.line_number)
 
-            # 3. Poblar ZIndex
             rounded_z = round(current_z, 3)
             if rounded_z not in z_to_cmds:
                 z_to_cmds[rounded_z] = []
             z_to_cmds[rounded_z].append(i)
 
-            # 4. Detectar Primera y Última Extrusión
             if isinstance(cmd, MoveCommand) and cmd.e is not None:
-                # Si el estado muestra incremento real de E o extrusión activa
                 if snap and snap.extruder_position > 0:
                     if first_extrusion_idx is None:
                         first_extrusion_idx = i
                     last_extrusion_idx = i
 
-            # 5. Detección de Capas (Layer Detection)
             detected_layer_change = False
             new_layer_idx = current_layer_num
 
-            # A. Detección por comentario explícito del Slicer
-            if cmd.comment:
-                match = self._LAYER_COMMENT_RE.search(cmd.comment)
+            # Buscar etiqueta de capa en el raw_text original para asegurar compatibilidad
+            if cmd.comment and cmd.raw_text:
+                match = self._LAYER_COMMENT_RE.search(cmd.raw_text)
                 if match:
                     detected_layer_change = True
                     new_layer_idx = int(match.group(1))
 
-            # B. Fallback por cambio de Z en movimiento
+            # Fallback por cambio de Z
             if not detected_layer_change and isinstance(cmd, MoveCommand) and cmd.z is not None:
                 if abs(cmd.z - current_layer_z) > 0.001 and first_extrusion_idx is not None:
                     detected_layer_change = True
                     new_layer_idx = current_layer_num + 1
 
             if detected_layer_change and i > layer_start_cmd_idx:
-                # Cerrar capa anterior
                 prev_end_line = document[i - 1].line_number
                 layer_idx_map[current_layer_num] = LayerInfo(
                     layer_index=current_layer_num,
@@ -150,13 +110,11 @@ class GCodeAnalyzer:
                     start_command_index=layer_start_cmd_idx,
                     end_command_index=i - 1,
                 )
-                # Iniciar nueva capa
                 current_layer_num = new_layer_idx
                 layer_start_cmd_idx = i
                 layer_start_line = cmd.line_number
                 current_layer_z = current_z
 
-        # Registrar la última capa inconclusa al final del bucle
         if num_commands > 0:
             last_cmd = document[num_commands - 1]
             layer_idx_map[current_layer_num] = LayerInfo(

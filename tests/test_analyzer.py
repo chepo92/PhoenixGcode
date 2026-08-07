@@ -64,7 +64,7 @@ class TestGCodeAnalyzer:
         assert result.layer_index.total_layers >= 2
         layer0 = result.layer_index.get_layer(0)
         assert layer0 is not None
-        assert layer0.start_line == 1
+        assert layer0.start_line == 6  # Inicia exactamente en la etiqueta '; LAYER:0' de la línea 6
 
         # 5. Verificar CommandIndex
         temp_cmds = result.command_index.get_indices_by_type(CommandType.TEMPERATURE)

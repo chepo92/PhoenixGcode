@@ -3,15 +3,44 @@ Componente interactivo para solicitar entradas al usuario humano en el Wizard.
 """
 
 import sys
+from pathlib import Path
 from typing import Dict, Any, Tuple, List
 
 
 class CLIPrompts:
-    """Solicita parámetros interactivamente si no se entregaron por línea de comandos."""
+
+    @staticmethod
+    def resolve_output_path(base_path: Path, interactive: bool = True) -> Tuple[Path, bool]:
+        """
+        Garantiza que el archivo de salida no sobrescriba archivos existentes sin confirmación.
+        
+        Returns:
+            Tupla (path_resuelto, fue_confirmado_interactivamente)
+        """
+        if not base_path.exists():
+            return base_path, False
+
+        if interactive:
+            print(f"\n⚠️  El archivo '{base_path.name}' ya existe.")
+            choice = input("¿Desea sobrescribirlo? [y/N]: ").strip().lower()
+            if choice in ("y", "yes"):
+                return base_path, True
+
+        # Si no se sobrescribe o en modo batch, generar nombre incremental: _001, _002, etc.
+        stem = base_path.stem
+        ext = base_path.suffix
+        parent = base_path.parent
+        counter = 1
+
+        while True:
+            new_path = parent / f"{stem}_{counter:03d}{ext}"
+            if not new_path.exists():
+                # En este caso se le asignó un nombre nuevo seguro, por lo que no requiere re-confirmación de sobrescritura
+                return new_path, True
+            counter += 1
 
     @staticmethod
     def ask_measured_z() -> float:
-        """Solicita la altura Z medida físicamente."""
         while True:
             try:
                 val = input("\nIngrese la altura Z medida en la pieza (mm):\n> ").strip()
@@ -21,10 +50,6 @@ class CLIPrompts:
 
     @staticmethod
     def select_candidate(candidates: List[Dict[str, Any]]) -> int:
-        """
-        Muestra la lista de candidatos encontrados para la altura Z
-        y permite al usuario seleccionar uno o mantener el recomendado.
-        """
         print("\n--- CANDIDATOS ENCONTRADOS ---")
         for cand in candidates:
             idx = cand["index"]
@@ -46,31 +71,24 @@ class CLIPrompts:
             print("❌ Selección fuera de rango.")
 
     @staticmethod
-    def confirm_generation() -> bool:
-        """Confirma la generación del archivo final."""
-        choice = input("\n¿Generar archivo Recovery.gcode? [Y/n]: ").strip().lower()
+    def confirm_generation(target_filename: str) -> bool:
+        """Confirma la generación mostrando explícitamente el archivo a crear."""
+        choice = input(f"\n¿Generar archivo '{target_filename}'? [Y/n]: ").strip().lower()
         return choice in ("", "y", "yes")
 
     @staticmethod
     def prompt_edit_menu(plan_dto: Dict[str, Any], output_path: str) -> Tuple[Dict[str, Any], str, bool]:
-        """
-        Permite modificar interactivamente parámetros del plan antes de compilar.
-
-        Returns:
-            Tupla de (plan_dto, output_path, re_evaluate_z_flag)
-            Si re_evaluate_z_flag es True, la CLI volverá a solicitar Z.
-        """
         state = plan_dto["reconstructed_state"]
         cand = plan_dto["candidate"]
         
         while True:
             print("\n--- MENU DE EDICION DEL RECOVERY PLAN ---")
-            print(f" 1. Cambiar Altura Z Medida     (actual: {cand['target_z']:.3f} mm)")
-            print(f" 2. Cambiar Candidato de Capa   (actual: Línea {cand['line_number']}, Capa #{cand['layer_index']})")
-            print(f" 3. Cambiar Temp Hotend          (actual: {state['hotend_temp']:.0f}°C)")
-            print(f" 4. Cambiar Temp Cama            (actual: {state['bed_temp']:.0f}°C)")
-            print(f" 5. Cambiar Estrategia Homing    (actual: {plan_dto['strategy']})")
-            print(f" 6. Cambiar Ruta de Salida       (actual: {output_path})")
+            print(f" 1. Cambiar Altura Z Medida       (actual: {cand['target_z']:.3f} mm)")
+            print(f" 2. Cambiar Candidato de Capa     (actual: Línea {cand['line_number']}, Capa #{cand['layer_index']})")
+            print(f" 3. Cambiar Temp Hotend            (actual: {state['hotend_temp']:.0f}°C)")
+            print(f" 4. Cambiar Temp Cama              (actual: {state['bed_temp']:.0f}°C)")
+            print(f" 5. Cambiar Estrategia de Homing   (actual: {plan_dto['strategy']})")
+            print(f" 6. Cambiar Ruta de Salida         (actual: {output_path})")
             print(" ----------------------------------------")
             print(" A. Aceptar Plan y Continuar")
             print(" Q. Cancelar")

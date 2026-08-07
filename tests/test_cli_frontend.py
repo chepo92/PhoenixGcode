@@ -64,11 +64,11 @@ class TestPhoenixCLIFrontend:
 
     def test_cli_recover_interactive_wizard_mode(self, sample_gcode: Path, tmp_path: Path):
         out_file = tmp_path / "wizard_out.gcode"
-        # Entradas del usuario:
-        # 1. "0.4\n" -> Ingresar Z
-        # 2. "\n"    -> Aceptar candidato [0] en prompt de candidatos
-        # 3. "A\n"   -> Aceptar plan en menú de edición
-        # 4. "y\n"   -> Confirmar generación final
+        # Entradas simuladas completas:
+        # 1. "0.4\n" -> Ingresar Z medida
+        # 2. "\n"    -> Aceptar el candidato [0] en la lista de candidatos
+        # 3. "A\n"   -> Aceptar plan en el menú de edición
+        # 4. "y\n"   -> Confirmar generación del archivo
         user_inputs = "0.4\n\nA\ny\n"
         result = runner.invoke(
             app,
