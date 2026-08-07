@@ -504,6 +504,4 @@ This license allows commercial use while ensuring improvements to PhoenixGCode i
 
 Organizations wishing to integrate PhoenixGCode into proprietary products without the obligations of the MPL may obtain a commercial license.
 
-For commercial licensing inquiries:
-
-contact@phoenixgcode.org
+For commercial licensing inquiries send me a message
