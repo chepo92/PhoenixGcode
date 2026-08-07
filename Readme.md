@@ -488,3 +488,22 @@ Las siguientes funcionalidades se desarrollarán sobre el mismo motor de anális
 PhoenixGCode
 
 A universal G-code analysis and failed print recovery library.
+
+
+## Licensing
+
+PhoenixGCode is available under a dual-license model.
+
+### Open Source
+
+PhoenixGCode Core is licensed under the Mozilla Public License 2.0 (MPL-2.0).
+
+This license allows commercial use while ensuring improvements to PhoenixGCode itself remain open.
+
+### Commercial License
+
+Organizations wishing to integrate PhoenixGCode into proprietary products without the obligations of the MPL may obtain a commercial license.
+
+For commercial licensing inquiries:
+
+contact@phoenixgcode.org
