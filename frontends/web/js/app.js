@@ -34,23 +34,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btn-copy-console").addEventListener("click", () => window.appConsole.copyToClipboard());
 
-    bridge.init((msg) => {
-        statusText.innerText = msg;
+    // Reemplazar la inicialización del bridge por esta versión simplificada:
+    bridge.init(() => {
+        // Mantener un mensaje único y limpio durante toda la carga interna
+        statusText.innerText = "Cargando Phoenix...";
     }).then(() => {
         statusTag.className = "status-tag status-ready";
+        statusText.innerText = "Ready";
         dropZone.classList.remove("disabled");
         fileInput.disabled = false;
-
-        document.getElementById("bench-pyodide").innerText = `${bridge.metrics.pyodideLoadTime.toFixed(2)} ms`;
-        document.getElementById("bench-wheel").innerText = `${bridge.metrics.phoenixLoadTime.toFixed(2)} ms`;
-        document.getElementById("bench-wasm-mem").innerText = `${bridge.getMemoryUsageMB()} MB`;
     }).catch((err) => {
         statusTag.className = "status-tag status-error";
-        statusText.innerText = `Error: ${err.message}`;
-        window.appConsole.error(err.message);
+        statusText.innerText = "Error de Carga";
+        window.appConsole.error(`Error inicializando entorno: ${err.message}`);
     });
 
     function resetWorkspace() {
+        document.getElementById("info-firmware").innerText = "-";
+        document.getElementById("info-lines").innerText = "-";
+        document.getElementById("info-layers").innerText = "-";
+        document.getElementById("info-zrange").innerText = "-";
+        document.getElementById("info-extrusion").innerText = "-";
+        document.getElementById("info-temps").innerText = "-";
+
         recoveryCard.classList.add("hidden");
         previewCard.classList.add("hidden");
         btnToolRecover.disabled = true;
@@ -58,7 +64,6 @@ document.addEventListener("DOMContentLoaded", () => {
         currentPlanData = null;
         generatedGCodeContent = null;
     }
-
     function loadFile(file) {
         if (!file) return;
 
@@ -113,7 +118,16 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("info-firmware").innerText = firmwareVal;
 
             document.getElementById("info-lines").innerText = (analysis.total_lines || 0).toLocaleString();
-            document.getElementById("info-layers").innerText = analysis.total_layers !== undefined ? analysis.total_layers : "-";
+            // Extracción segura del número total de capas
+            const totalLayers = analysis.total_layers !== undefined 
+                ? analysis.total_layers 
+                : (analysis.layer_index && analysis.layer_index.total_layers !== undefined 
+                    ? analysis.layer_index.total_layers 
+                    : "-");
+
+            document.getElementById("info-layers").innerText = typeof totalLayers === "number" 
+                ? totalLayers.toLocaleString() 
+                : totalLayers;
 
             if (analysis.max_z_height !== undefined) {
                 document.getElementById("info-zrange").innerText = `0.00 - ${Number(analysis.max_z_height).toFixed(2)} mm`;
@@ -179,7 +193,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 candidates.forEach((cand) => {
                     const opt = document.createElement("option");
                     opt.value = cand.index;
-                    opt.innerText = `Candidato #${cand.index} | Capa: ${cand.layer_index} | Z Target: ${cand.target_z}mm | Línea: ${cand.line_number}`;
+                    
+                    // Extracción segura del número de capa
+                    const layerNum = cand.layer_index !== undefined ? cand.layer_index : (cand.layer !== undefined ? cand.layer : "N/A");
+                    const zTarget = cand.target_z !== undefined ? cand.target_z : "N/A";
+                    const lineNum = cand.line_number !== undefined ? cand.line_number : "N/A";
+
+                    opt.innerText = `Candidato #${cand.index} | Capa: ${layerNum} | Altura Z: ${zTarget}mm | Línea: ${lineNum}`;
                     recLayerSelect.appendChild(opt);
                 });
                 recLayerSelect.disabled = false;
