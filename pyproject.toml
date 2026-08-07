@@ -5,9 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "phoenixgcode"
 version = "0.1.0"
+description = "Biblioteca Python y CLI para analizar, interpretar y recuperar archivos G-code."
+readme = "README.md"
+requires-python = ">=3.11"
 dependencies = [
-    "chardet",
+    "chardet>=5.0.0",
 ]
+
+[project.scripts]
+phoenix = "phoenixgcode.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
