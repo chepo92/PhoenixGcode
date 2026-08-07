@@ -1,0 +1,2 @@
+verificar que el z de input sea menor al z del modelo
+ademas diferenciar el rango de movimiento total Z de la altura real del modelo (ej modelo de 20mm pero al finalizar el gcode levanta 10mm para evitar choque, el algoritmo detecta que el rango Z es 30, pero no se si eso diferencia la altura del modelo, ya que la verificacion del input de altura Z deberia restringir a 20)
