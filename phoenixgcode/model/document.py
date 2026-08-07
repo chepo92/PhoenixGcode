@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Sequence, Iterator
+from typing import Tuple, List, Optional
 from phoenixgcode.model.command import Command
 
 
