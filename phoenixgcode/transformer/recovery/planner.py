@@ -79,8 +79,24 @@ class RecoveryPlanner:
                     continue
 
                 last_z_seen = snap.position.z
-                layer_info = analysis.layer_index.get_layer(snap.current_layer_index or 0)
-                layer_idx = layer_info.layer_index if layer_info else 0
+
+                # 1. Intentar obtener capa por el índice del snapshot si existe
+                layer_idx = 0
+                if snap.current_layer_index is not None and snap.current_layer_index > 0:
+                    layer_info = analysis.layer_index.get_layer(snap.current_layer_index)
+                    if layer_info:
+                        layer_idx = getattr(layer_info, 'layer_index', snap.current_layer_index)
+                    else:
+                        layer_idx = snap.current_layer_index
+
+                # 2. Fallback: Resolver el número de capa mediante la altura Z en el análisis
+                if layer_idx == 0 and hasattr(analysis, "z_index") and hasattr(analysis.z_index, "sorted_z_heights"):
+                    z_heights = analysis.z_index.sorted_z_heights
+                    current_z = snap.position.z
+                    for idx, z_val in enumerate(z_heights):
+                        if abs(z_val - current_z) < 0.01:
+                            layer_idx = idx + 1  # Capas numeradas desde 1 (Capa 1, Capa 2...)
+                            break
 
                 # Cálculo de confianza
                 z_err = abs(snap.position.z - target_z)
