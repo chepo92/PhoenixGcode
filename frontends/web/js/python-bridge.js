@@ -1,5 +1,5 @@
 /**
- * PythonBridge: Invocación oficial de PhoenixGCodeAPI.
+ * PythonBridge: Invocación oficial de PhoenixGCodeAPI mapeada al Core real.
  */
 class PhoenixPythonBridge {
     constructor() {
@@ -70,16 +70,21 @@ class PhoenixPythonBridge {
     }
 
     /**
-     * Construye el Recovery Plan llamando a PhoenixGCodeAPI.build_recovery_plan
+     * Mapeado a PhoenixGCodeAPI.plan_recovery
      */
-    async buildRecoveryPlan(filename, arrayBuffer, targetZ) {
+    async planRecovery(filename, arrayBuffer, measuredZ, strategyName = "HOME_XY", candidateIndex = 0) {
         const virtualPath = `/tmp/${filename}`;
         this.pyodide.FS.writeFile(virtualPath, new Uint8Array(arrayBuffer));
 
         const code = `
             import json
-            plan = PhoenixGCodeAPI.build_recovery_plan("${virtualPath}", target_z=${targetZ})
-            json.dumps(plan)
+            res = PhoenixGCodeAPI.plan_recovery(
+                file_path="${virtualPath}",
+                measured_z=${measuredZ},
+                candidate_index=${candidateIndex},
+                strategy_name="${strategyName}"
+            )
+            json.dumps(res)
         `;
 
         const jsonResultStr = await this.pyodide.runPythonAsync(code);
@@ -89,9 +94,9 @@ class PhoenixPythonBridge {
     }
 
     /**
-     * Genera el nuevo archivo G-code recuperado llamando a PhoenixGCodeAPI.generate_recovery_gcode
+     * Mapeado a PhoenixGCodeAPI.execute_recovery
      */
-    async generateRecoveryGCode(filename, arrayBuffer, selectedCandidateIndex, homeMode, overrideE) {
+    async executeRecovery(filename, arrayBuffer, measuredZ, candidateIndex, strategyName, overrideHotendTemp = null, overrideBedTemp = null) {
         const virtualPath = `/tmp/${filename}`;
         const outputPath = `/tmp/recovery_${filename}`;
         this.pyodide.FS.writeFile(virtualPath, new Uint8Array(arrayBuffer));
@@ -100,18 +105,17 @@ class PhoenixPythonBridge {
             import json
             from phoenixgcode.api import PhoenixGCodeAPI
             
-            plan_dict = PhoenixGCodeAPI.build_recovery_plan("${virtualPath}", target_z=0.0)
-            
-            # Invocar generación mediante la API
-            out_path = PhoenixGCodeAPI.generate_recovery_gcode(
-                original_filepath="${virtualPath}",
-                output_filepath="${outputPath}",
-                candidate_index=${selectedCandidateIndex},
-                home_mode="${homeMode}",
-                override_extrusion=${overrideE !== null ? overrideE : 'None'}
+            out_file = PhoenixGCodeAPI.execute_recovery(
+                input_path="${virtualPath}",
+                output_path="${outputPath}",
+                measured_z=${measuredZ},
+                candidate_index=${candidateIndex},
+                strategy_name="${strategyName}",
+                override_hotend_temp=${overrideHotendTemp !== null ? overrideHotendTemp : 'None'},
+                override_bed_temp=${overrideBedTemp !== null ? overrideBedTemp : 'None'}
             )
             
-            with open("${outputPath}", "r", encoding="utf-8", errors="ignore") as f:
+            with open(out_file, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
             content
         `;

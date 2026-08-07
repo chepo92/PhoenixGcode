@@ -96,7 +96,7 @@ class PhoenixGCodeAPI:
         timeline = interpreter.interpret(document)
         analysis = analyzer.analyze(document, timeline)
 
-        strategy = RecoveryStrategyType[strategy_name.upper()]
+        strategy = _parse_strategy(strategy_name)
         settings = RecoverySettings(
             measured_z=measured_z,
             strategy=strategy,
@@ -177,7 +177,7 @@ class PhoenixGCodeAPI:
         timeline = interpreter.interpret(document)
         analysis = analyzer.analyze(document, timeline)
 
-        strategy = RecoveryStrategyType[strategy_name.upper()]
+        strategy = _parse_strategy(strategy_name)
         settings = RecoverySettings(
             measured_z=measured_z,
             strategy=strategy,
@@ -197,3 +197,31 @@ class PhoenixGCodeAPI:
         result_path = writer.write_to_file(recovery_doc, output_path)
 
         return str(result_path.resolve())
+
+
+    # Mapeo de alias para mayor flexibilidad en frontends
+STRATEGY_MAP = {
+    "NO_HOME": RecoveryStrategyType.MANUAL_POSITION,
+    "NONE": RecoveryStrategyType.MANUAL_POSITION,
+    "MANUAL": RecoveryStrategyType.MANUAL_POSITION,
+    "MANUAL_POSITION": RecoveryStrategyType.MANUAL_POSITION,
+    
+    "HOME_XY": RecoveryStrategyType.HOME_XY,
+    "XY_ONLY": RecoveryStrategyType.HOME_XY,
+    
+    "HOME_XYZ": RecoveryStrategyType.HOME_XYZ,
+    "HOME_ALL": RecoveryStrategyType.HOME_XYZ,
+    "FULL": RecoveryStrategyType.HOME_XYZ,
+    
+    "CUSTOM_SCRIPT": RecoveryStrategyType.CUSTOM_SCRIPT,
+}
+
+def _parse_strategy(strategy_name: str) -> RecoveryStrategyType:
+    key = str(strategy_name).upper().strip()
+    if key in STRATEGY_MAP:
+        return STRATEGY_MAP[key]
+    try:
+        return RecoveryStrategyType[key]
+    except KeyError:
+        # Fallback seguro
+        return RecoveryStrategyType.HOME_XY
