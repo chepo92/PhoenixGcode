@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PhoenixGCode – Web Workspace</title>
     <link rel="stylesheet" href="css/main.css">
-    <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
     <!-- Runtime oficial Pyodide CDN -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
 </head>
@@ -14,7 +15,7 @@
         <!-- Header Principal -->
         <header class="app-header">
             <div class="brand">
-                <img src="./assets/icon.svg" alt="Phoenix Logo" class="app-icon">
+                <img src="assets/icon.svg" alt="Phoenix Logo" class="app-icon">
                 <h1>PhoenixGCode <span>Workspace</span></h1>
             </div>
             <div id="system-status" class="status-tag status-loading">
@@ -36,19 +37,10 @@
                         <p>Arrastra tu archivo G-code aquí o <strong>Haz Clic para seleccionar</strong></p>
                     </div>
                 </div>
-                
                 <div id="file-meta" class="file-meta hidden">
                     <p><strong>Nombre:</strong> <span id="meta-name">-</span></p>
                     <p><strong>Tamaño:</strong> <span id="meta-size">-</span></p>
-                    <p><strong>Estado:</strong> <span id="meta-status">Pendiente de Carga</span></p>
-                    
-                    <!-- Indicador de Progreso de Lectura -->
-                    <div id="upload-progress-container" class="progress-container hidden">
-                        <div class="progress-bar-bg">
-                            <div id="upload-progress-bar" class="progress-bar-fill"></div>
-                        </div>
-                        <span id="upload-progress-text" class="progress-text">0%</span>
-                    </div>
+                    <p><strong>Estado:</strong> <span id="meta-status">Pendiente de Análisis</span></p>
                 </div>
             </section>
 
@@ -82,7 +74,7 @@
             <section class="card tools-card">
                 <h2>Herramientas</h2>
                 <div class="tools-actions">
-                    <button id="btn-tool-analyze" class="tool-btn" disabled>Analyze</button>
+                    <button id="btn-tool-analyze" class="tool-btn active">Analyze</button>
                     <button id="btn-tool-recover" class="tool-btn" disabled title="Módulo Recovery no activo">Recover</button>
                     <button id="btn-tool-optimize" class="tool-btn" disabled title="Módulo Optimizer no activo">Optimize</button>
                     <button id="btn-tool-compare" class="tool-btn" disabled title="Módulo Compare no activo">Compare</button>
@@ -111,9 +103,20 @@
     </div>
 
     <!-- Módulos JavaScript -->
-    <script src="./js/console.js"></script>
-    <script src="./js/inspector.js"></script>
-    <script src="./js/python-bridge.js"></script>
-    <script src="./js/app.js"></script>
+    <script src="js/console.js"></script>
+    <script src="js/inspector.js"></script>
+    <script src="js/python-bridge.js"></script>
+    <script src="js/app.js"></script>
+
+    <!-- Registro del Service Worker -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(reg => console.log('ServiceWorker registrado:', reg.scope))
+                    .catch(err => console.warn('ServiceWorker error:', err));
+            });
+        }
+    </script>
 </body>
 </html>

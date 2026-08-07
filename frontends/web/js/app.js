@@ -11,12 +11,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const metaSize = document.getElementById("meta-size");
     const metaStatus = document.getElementById("meta-status");
 
-    const progressContainer = document.getElementById("upload-progress-container");
-    const progressBar = document.getElementById("upload-progress-bar");
-    const progressText = document.getElementById("upload-progress-text");
-
     const btnAnalyze = document.getElementById("btn-tool-analyze");
 
+    // Variables de estado local (para no analizar automáticamente)
     let currentFileBuffer = null;
     let currentFileName = "";
     let readTimeMs = 0;
@@ -41,7 +38,10 @@ document.addEventListener("DOMContentLoaded", () => {
         window.appConsole.error(err.message);
     });
 
-    function resetAnalysisViews() {
+    /**
+     * Limpia los resultados previos cuando se sube un nuevo archivo.
+     */
+    function resetResults() {
         document.getElementById("info-firmware").innerText = "-";
         document.getElementById("info-lines").innerText = "-";
         document.getElementById("info-layers").innerText = "-";
@@ -58,38 +58,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     /**
-     * PASO 1: LECTURA LOCAL
-     * Solamente lee el archivo en memoria y muestra el progreso. NO llama al Core.
+     * PASO 1: Carga local del archivo en RAM.
+     * Muestra el porcentaje de progreso en texto y cambia el estado a "Listo para analizar".
+     * NO ejecuta el análisis en Python.
      */
     function loadFile(file) {
         if (!file) return;
 
         currentFileBuffer = null;
         currentFileName = file.name;
-        resetAnalysisViews();
+        resetResults();
 
         metaName.innerText = file.name;
         metaSize.innerText = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
-        metaStatus.innerText = "Cargando...";
+        metaStatus.innerText = "Cargando (0%)...";
         
         fileMeta.classList.remove("hidden");
-        progressContainer.classList.remove("hidden");
-        progressBar.style.width = "0%";
-        progressText.innerText = "0%";
-
         btnAnalyze.disabled = true;
         btnAnalyze.classList.remove("active");
 
-        window.appConsole.log(`Lectura local de archivo: ${file.name}`);
+        window.appConsole.log(`Archivo seleccionado: ${file.name}`);
 
         const reader = new FileReader();
         const tStart = performance.now();
 
+        // Progreso de lectura local
         reader.onprogress = (event) => {
             if (event.lengthComputable) {
                 const percent = Math.round((event.loaded / event.total) * 100);
-                progressBar.style.width = `${percent}%`;
-                progressText.innerText = `${percent}%`;
+                metaStatus.innerText = `Cargando (${percent}%)...`;
             }
         };
 
@@ -99,27 +96,26 @@ document.addEventListener("DOMContentLoaded", () => {
             currentFileBuffer = event.target.result;
 
             metaStatus.innerText = "Listo para analizar";
-            progressBar.style.width = "100%";
-            progressText.innerText = "100%";
-
             document.getElementById("bench-read").innerText = `${readTimeMs.toFixed(2)} ms`;
+
             window.appConsole.log(`Archivo cargado en memoria RAM en ${readTimeMs.toFixed(2)} ms. Estado: Listo para analizar.`);
 
-            // Habilitar el botón Analyze
+            // Habilitar exclusivamente el botón Analyze
             btnAnalyze.disabled = false;
             btnAnalyze.classList.add("active");
         };
 
         reader.onerror = () => {
             metaStatus.innerText = "Error al leer archivo";
-            window.appConsole.error("Error leyendo archivo en navegador.");
+            window.appConsole.error("Error leyendo el archivo.");
         };
 
         reader.readAsArrayBuffer(file);
     }
 
     /**
-     * PASO 2: ANÁLISIS EN EL CORE (Se ejecuta SÓLO al hacer clic en Analyze)
+     * PASO 2: Ejecución del Análisis en Core.
+     * Se dispara ÚNICAMENTE al presionar el botón 'Analyze'.
      */
     async function executeAnalysis() {
         if (!currentFileBuffer) {
@@ -128,7 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         metaStatus.innerText = "Analizando con Core...";
-        window.appConsole.log("Clic en 'Analyze': Ejecutando PhoenixGCodeAPI.analyze_file...");
+        window.appConsole.log("Ejecutando PhoenixGCodeAPI.analyze_file...");
         btnAnalyze.disabled = true;
 
         try {
@@ -136,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
             window.appConsole.log(`Análisis completado. Capas: ${analysis.total_layers}, Líneas: ${analysis.total_lines}`);
 
-            // Mostrar resultados
+            // Renderizar Información del Core
             document.getElementById("info-firmware").innerText = "Marlin / Cura (Detectado)";
             document.getElementById("info-lines").innerText = analysis.total_lines.toLocaleString();
             document.getElementById("info-layers").innerText = analysis.total_layers;
@@ -144,10 +140,12 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById("info-extrusion").innerText = "ABSOLUTE (M82)";
             document.getElementById("info-temps").innerText = "210°C / 60°C";
 
+            // Renderizar Métricas
             document.getElementById("bench-analysis").innerText = `${analysis.analysis_time_ms.toFixed(2)} ms`;
             document.getElementById("bench-total").innerText = `${(readTimeMs + analysis.analysis_time_ms).toFixed(2)} ms`;
             document.getElementById("bench-wasm-mem").innerText = `${bridge.getMemoryUsageMB()} MB`;
 
+            // Renderizar Inspector JSON
             window.appInspector.render(analysis);
             metaStatus.innerText = "Análisis Completado";
 
