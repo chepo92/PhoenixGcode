@@ -2,510 +2,332 @@
 
 > **A universal G-code analysis and failed print recovery library.**
 
-PhoenixGCode es una biblioteca Python para analizar, interpretar y transformar archivos G-code de impresoras 3D.
+PhoenixGCode is an open-source Python library for analyzing G-code and recovering failed FDM 3D prints.
 
-Su primer objetivo es permitir la recuperación de impresiones fallidas mediante la generación de un nuevo G-code que continúe la impresión desde una altura determinada, reconstruyendo automáticamente el estado de la impresora.
+Its primary goal is to eliminate the need to manually edit G-code files after a failed print by providing a reliable, reusable recovery engine that can be integrated into desktop applications, slicers, web applications and automation tools.
 
-Sin embargo, la recuperación es solamente la primera aplicación. La arquitectura está diseñada para convertirse en un motor general de análisis y transformación de G-code.
-
----
-
-# Filosofía
-
-La mayoría de las herramientas existentes modifican archivos G-code como si fueran texto.
-
-PhoenixGCode sigue un enfoque diferente.
-
-Antes de modificar cualquier archivo, reconstruye virtualmente el estado de ejecución de la impresora.
-
-En otras palabras:
-
-No modifica un archivo hasta comprender qué significa cada instrucción.
+The first official feature of PhoenixGCode is **Failed Print Recovery**.
 
 ---
 
-# Objetivos
+# Why PhoenixGCode?
 
-- Analizar archivos G-code completos.
-- Interpretar el estado de ejecución de la impresora.
-- Reconstruir posiciones, temperaturas y modos de operación.
-- Generar transformaciones seguras.
-- Mantener una API reutilizable para otras aplicaciones.
+Anyone who has spent 20, 30 or even 50 hours printing a large model knows the feeling:
 
----
+- Power outage
+- Filament run-out
+- Clogged nozzle
+- Layer shift
+- Accidental printer stop
+- Firmware reset
 
-# Características
+The print fails just before completion.
 
-## Análisis
+Traditionally, recovering such a print requires manually editing thousands of lines of G-code, understanding extrusion state, removing startup sequences and hoping nothing was missed.
 
-- Parser completo de G-code.
-- Interpretación del estado de la impresora.
-- Reconstrucción de movimientos.
-- Reconstrucción del extrusor.
-- Detección automática de capas.
-- Construcción de índices internos.
-
-## Recovery
-
-- Recuperación desde una altura Z medida.
-- Selección de candidatos de recuperación.
-- Reconstrucción automática del estado.
-- Recovery Plan editable.
-- Estrategias configurables de recuperación.
-- Generación automática de un nuevo G-code.
-
-## Arquitectura
-
-- Biblioteca independiente.
-- API pública.
-- CLI oficial.
-- Integraciones desacopladas.
-- Preparado para múltiples firmwares.
+PhoenixGCode automates that process.
 
 ---
 
-# Principios
+# Features
 
-## Comprender antes de transformar
+Current features:
 
-Toda modificación debe basarse en un modelo interno del G-code.
+- Analyze G-code files
+- Detect print metadata
+- Detect layer structure
+- Recover failed prints from a measured Z height
+- Generate recovery G-code
+- Browser-based execution using Pyodide
+- Pure Python Core
+- Platform independent
 
-Nunca se modificará texto directamente.
+Planned features:
 
----
-
-## Automatización supervisada
-
-Phoenix detecta automáticamente toda la información que puede inferirse del G-code.
-
-El usuario siempre podrá revisar y modificar los parámetros antes de generar un nuevo archivo.
-
----
-
-## Responsabilidad única
-
-Cada módulo realiza solamente una tarea.
-
-Ejemplos:
-
-Reader
-
-Tokenizer
-
-Parser
-
-Interpreter
-
-Analyzer
-
-Transformer
-
-Writer
+- Automatic recovery assistant
+- G-code validation
+- G-code optimization
+- Semantic G-code comparison
+- Plugin for Ultimaker Cura
+- Integration with PrusaSlicer
+- Integration with OrcaSlicer
+- Print2Go integration
+- OctoPrint plugin
 
 ---
 
-## El núcleo no depende de interfaces
+# Project Architecture
 
-La biblioteca no conoce:
+PhoenixGCode separates the processing engine from every user interface.
 
-- Cura
-- OctoPrint
-- Print2Go
-- CLI
+```
+                   PhoenixGCode Core
 
-Todas las interfaces consumen la misma API pública.
+        Reader
+            │
+            ▼
+        Parser
+            │
+            ▼
+     Interpreter
+            │
+            ▼
+        Analyzer
+            │
+            ▼
+     Recovery Engine
+            │
+            ▼
+      Public Python API
+            │
+            ├────────────── Web Frontend (Pyodide)
+            ├────────────── Cura Plugin
+            ├────────────── PrusaSlicer
+            ├────────────── OrcaSlicer
+            ├────────────── Print2Go
+            └────────────── OctoPrint
+```
 
----
+Every frontend uses exactly the same API.
 
-# Arquitectura
-
-                    PhoenixGCode
-
-                         │
-
-                    Public API
-
-                         │
-
-        ┌────────────────┼────────────────┐
-
-        │                │                │
-
-        ▼                ▼                ▼
-
-     Reader         Interpreter     Transformer
-
-        │                │                │
-
-        ▼                ▼                ▼
-
-    Tokenizer      Execution State   Recovery
-
-        │                │           Future Tools
-
-        ▼                │
-
-      Parser             ▼
-
-        │          Document Model
-
-        └───────────────┬───────────────┐
-
-                        ▼               ▼
-
-                  Analyzer         Writer
-
-                        │
-
-                        ▼
-
-                Layer Index
-
-                Z Index
-
-                Snapshot Index
+No interface contains recovery logic.
 
 ---
 
-# Estructura del proyecto
+# Failed Print Recovery
 
-phoenixgcode/
+The recovery workflow is intentionally simple.
 
-    model/
-
-    reader/
-
-    tokenizer/
-
-    parser/
-
-    interpreter/
-
-    analyzer/
-
-    transformer/
-
-        recovery/
-
-    writer/
-
-    profiles/
-
-    utils/
-
-frontends/
-
-    cli/
-
-    cura/
-
-    print2go/
-
-    octoprint/
-
-tests/
-
-docs/
-
-examples/
+1. Load the original G-code.
+2. Analyze the file.
+3. Measure the physical height of the failed print.
+4. Select the recovery layer suggested by PhoenixGCode.
+5. Configure homing strategy.
+6. Review extrusion state if necessary.
+7. Generate a new recovery G-code.
+8. Resume printing.
 
 ---
 
-# Pipeline
+# Recovery Features
 
-Archivo G-code
+PhoenixGCode automatically:
 
-↓
+- Preserves print temperatures
+- Removes slicer startup movements
+- Reconstructs printer state
+- Restores extrusion state using G92
+- Starts from the desired layer
+- Generates a new printable G-code
 
-Reader
+User-selectable options include:
 
-↓
-
-Tokenizer
-
-↓
-
-Parser
-
-↓
-
-Document Model
-
-↓
-
-Interpreter
-
-↓
-
-Execution Timeline
-
-↓
-
-Analyzer
-
-↓
-
-Recovery Planner
-
-↓
-
-Recovery Plan
-
-↓
-
-Usuario revisa
-
-↓
-
-Recovery Builder
-
-↓
-
-Writer
-
-↓
-
-Recovery.gcode
+- No Home
+- Home X/Y
+- Full Home
+- Manual positioning
+- Extrusion value adjustment
 
 ---
 
-# Recovery Workflow
+# Web Application
 
-1. Seleccionar el archivo G-code original.
+PhoenixGCode includes a browser frontend.
 
-2. Analizar completamente el archivo.
+The application runs entirely on the client using Pyodide.
 
-3. Reconstruir el estado de ejecución.
+No G-code is uploaded.
 
-4. Ingresar la altura Z medida.
+No cloud processing is performed.
 
-5. Buscar candidatos de recuperación.
+Your files remain on your computer.
 
-6. Construir un Recovery Plan.
+Current development uses:
 
-7. Permitir modificar parámetros.
+- Python
+- Pyodide
+- JavaScript
+- HTML
+- CSS
 
-8. Generar el nuevo G-code.
+The web application is currently tested locally using **VSCode Live Server**.
 
----
-
-# Recovery Plan
-
-El Recovery Plan contiene toda la información necesaria antes de generar un nuevo archivo.
-
-Incluye:
-
-- Punto de recuperación.
-- Layer seleccionado.
-- Altura Z.
-- Temperaturas detectadas.
-- Modo de extrusión.
-- Ventilador.
-- Último valor de E.
-- Estrategia de recuperación.
-- Configuración editable.
-- Archivo de salida.
-
-El usuario siempre podrá revisarlo antes de continuar.
+Future releases are planned for GitHub Pages as a fully static Progressive Web App (PWA).
 
 ---
 
-# Recovery Strategies
+# Supported Firmware
 
-Inicialmente se soportarán:
+Current focus:
 
-- Manual Position
-- Home XY
-- Home XYZ
-- Custom Script
+- Marlin
 
-La arquitectura permitirá agregar nuevas estrategias sin modificar el núcleo.
+Expected compatibility:
 
----
-
-# Compatibilidad
-
-Diseñado para:
-
-- Marlin (MVP)
-
-Arquitectura preparada para:
-
-- Klipper
-- RepRapFirmware
-- Bambu
-- Otros perfiles futuros
+- RepRap Firmware
+- Klipper (where compatible with generated G-code)
 
 ---
 
-# Interfaces oficiales
+# Supported Slicers
 
-PhoenixGCode ofrece dos interfaces oficiales.
+Current testing:
 
-## API Python
-
-Para integraciones directas.
-
-Utilizada por:
-
-- Cura Plugin
-- Print2Go
-- OctoPrint
-
-## CLI
-
-Pensada para:
-
-- Usuarios
-- Scripts
-- Automatización
-- Integraciones mediante línea de comandos
-
----
-
-# CLI
-
-La CLI soportará dos modos.
-
-## Interactivo
-
-Asistente paso a paso para usuarios.
-
-Ejemplo:
-
-phoenix recover dragon.gcode
-
-La aplicación solicitará únicamente los datos necesarios.
-
----
-
-## Batch
-
-Pensado para automatización.
-
-Ejemplo:
-
-phoenix recover dragon.gcode --z 83.42 --candidate 2 --home xy
-
-En este modo nunca se solicitará información interactiva.
-
----
-
-# Integraciones
-
-Integraciones oficiales previstas:
-
-- CLI
 - Ultimaker Cura
-- Print2Go
-- OctoPrint
-
-Integraciones mediante CLI:
-
 - PrusaSlicer
 - OrcaSlicer
-- Bambu Studio
 
-Todas las integraciones utilizarán exclusivamente la API pública o la CLI oficial.
-
----
-
-# Calidad
-
-- Python 3.11+
-- Type Hints
-- Dataclasses
-- Logging
-- Pruebas unitarias
-- Sin variables globales
-- Arquitectura modular
+Since PhoenixGCode operates directly on standard G-code, it is designed to remain slicer-independent whenever possible.
 
 ---
 
-# Estado del proyecto
+# Installation
 
-Actualmente en desarrollo.
+Python:
 
-Primera meta:
+```
+pip install phoenixgcode
+```
 
-Recovery de impresiones fallidas.
+Development:
 
-Las siguientes funcionalidades se desarrollarán sobre el mismo motor de análisis.
+```
+git clone https://github.com/<your-user>/PhoenixGCode.git
+cd PhoenixGCode
+pip install -e .
+```
+
+---
+
+# Example
+
+```python
+from phoenixgcode import PhoenixGCode
+
+job = PhoenixGCode("cube.gcode")
+
+analysis = job.analyze()
+
+recovery = job.create_recovery(
+    z_height=32.40,
+    home_mode="xy"
+)
+
+recovery.save("cube_recovered.gcode")
+```
+
+(The API may evolve before the first stable release.)
+
+---
+
+# Project Status
+
+Current release:
+
+**Beta**
+
+PhoenixGCode is under active development.
+
+The public API may change before version 1.0.
 
 ---
 
 # Roadmap
 
-## v0.1
-
-- Modelo de datos.
-- Reader.
-- Tokenizer.
-- Parser.
-- Interpreter.
-- Analyzer.
-
-## v0.2
-
-- Recovery Planner.
-- Recovery Builder.
-- Writer.
-
-## v0.3
-
-- CLI oficial.
-- Recovery Wizard.
-- Pruebas con G-code reales.
-
 ## v0.4
 
-- Plugin para Ultimaker Cura.
+- Failed Print Recovery MVP
+- Web Frontend
+- Browser execution using Pyodide
 
 ## v0.5
 
-- Integración con Print2Go.
+- Recovery improvements
+- Better recovery assistant
+- Additional slicer testing
 
 ## v0.6
 
-- Plugin para OctoPrint.
+- Command Line Interface
 
-## Futuro
+## v0.7
 
-- Nuevos perfiles de firmware.
-- Más transformaciones de G-code.
-- Optimización de movimientos.
-- Validación de G-code.
-- Estadísticas de impresión.
-- Conversión entre dialectos.
-- Integraciones adicionales.
-- Interfaz TUI.
-- Interfaz Web.
+- Cura Plugin
+
+## v0.8
+
+- Semantic G-code Comparison
+
+## v0.9
+
+- G-code Optimization
+
+## v1.0
+
+- Stable Release
 
 ---
 
+# License
 
+PhoenixGCode Community Edition is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 
-## Licensing
+Commercial licensing is available for organizations wishing to integrate PhoenixGCode into proprietary software or commercial products.
 
-PhoenixGCode is available under a dual-license model.
+See:
 
-Copyright (c) 2026 Axel Sepúlveda
+- LICENSE
+- COMMERCIAL_LICENSE.md
 
-- Community Edition
-GNU Affero General Public License v3.0 (AGPL-3.0)
+---
 
-- Commercial Edition
+# Contributing
 
-Commercial licenses are available for companies and organizations
-that wish to integrate PhoenixGCode into proprietary software,
-commercial products, SaaS platforms or embedded systems without
-the obligations of the AGPL.
+Contributions are welcome.
 
+Please read:
 
-### Commercial License
-Commercial licensing is also available.
-Organizations wishing to integrate PhoenixGCode into proprietary products without the obligations of the AGPL may obtain a commercial license.
+- CONTRIBUTING.md
 
-For commercial licensing inquiries send me a message
-This license allows commercial use while ensuring improvements to PhoenixGCode itself remain open.
-See COMMERCIAL_LICENSE.md for details.
+before submitting pull requests.
+
+---
+
+# Acknowledgements
+
+PhoenixGCode has been inspired by prior work from the 3D printing community, including projects related to G-code parsing, visualization and failed print recovery.
+
+Special thanks to the authors of projects such as:
+
+- pygcode
+- GcodeParser
+- GcodeLens
+- reCovery
+- 3DPrint UnF**ker
+- Gcode Toolkit
+
+Their work helped shape the ideas behind PhoenixGCode.
+
+---
+
+# Philosophy
+
+PhoenixGCode is **not** a slicer.
+
+It is a reusable library dedicated to G-code analysis and failed print recovery.
+
+By keeping the processing engine independent from the user interface, PhoenixGCode can be integrated into multiple desktop, web and embedded applications while maintaining identical behavior across every platform.
+
+---
+
+# Support the Project
+
+If PhoenixGCode saved one of your prints, consider supporting its development.
+
+Future support options will include:
+
+- GitHub Sponsors
+- Ko-fi
+- Buy Me a Coffee
+
+Your support helps improve the project and keep the Community Edition free and open source.
