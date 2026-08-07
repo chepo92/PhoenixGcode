@@ -13,7 +13,7 @@ class CLIFormatter:
         banner = (
             "==========================================================\n"
             " PhoenixGCode Recovery Wizard\n"
-            " \"A universal G-code analysis and failed print recovery library.\"\n"
+            " \"A universal G-code analysis and failed print recovery library\"\n"
             "=========================================================="
         )
         print(banner)
@@ -32,20 +32,20 @@ class CLIFormatter:
         state = plan_dto["reconstructed_state"]
 
         print("\n==========================================================")
-        print("Recovery Plan")
+        print(" Recovery Plan")
         print("==========================================================")
         print(f"Archivo:            {plan_dto['source_file']}")
         print("\n[Recovery Point]")
         print(f"Línea Original:     {cand['line_number']}")
         print(f"Capa:               #{cand['layer_index']}")
-        print(f"Z:                  {cand['target_z']:.2f} mm")
+        print(f"Z:                  {cand['target_z']:.3f} mm")
         print(f"Confianza:          {cand['confidence_score'] * 100:.1f}%")
 
         print("\n[Estado Reconstruido]")
         print(f"Temperatura Hotend: {state['hotend_temp']:.0f}°C")
         print(f"Temperatura Cama:   {state['bed_temp']:.0f}°C")
         print(f"Modo Extrusión:     {state['extrusion_mode']}")
-        print(f"Último E:           {state['extruder_e']:.2f}")
+        print(f"Último E:           {state['extruder_e']:.4f}")
         print(f"Fan:                {state['fan_speed']:.0f}")
 
         print("\n[Estrategia & Output]")

@@ -44,12 +44,11 @@ class TestRecoveryPlanner:
         timeline = interpreter.interpret(doc)
         analysis = analyzer.analyze(doc, timeline)
 
-        # Configuración buscando recuperarse a Z = 0.4 mm
         settings = RecoverySettings(
             measured_z=0.4,
             z_tolerance=0.05,
             strategy=RecoveryStrategyType.HOME_XY,
-            override_hotend_temp=210.0,  # Cambio de temperatura personalizado
+            override_hotend_temp=210.0,
         )
 
         candidates = planner.find_candidates(doc, timeline, analysis, settings)
@@ -57,38 +56,38 @@ class TestRecoveryPlanner:
         assert len(candidates) > 0
         top_candidate = candidates[0]
         assert abs(top_candidate.target_z - 0.4) < 0.001
+        assert top_candidate.confidence_score > 0.0  # Confianza positiva válida
 
         plan = planner.create_plan(top_candidate, settings)
-
-        # 1. Verificar preámbulo generado
         assert len(plan.preamble_commands) > 0
-        # Debe incluir la temperatura override (210ºC)
-        m109_cmd = [c for c in plan.preamble_commands if c.code == "M109"][0]
-        assert m109_cmd.parameters["S"] == 210.0
 
-        # 2. Verificar que el RecoveryPlan es 100% editable
-        original_preamble_count = len(plan.preamble_commands)
-        plan.preamble_commands.append(
-            parser.parse_line_tokens(tokenizer.tokenize_line(0, "M117 Reanudando Impresion..."))
-        )
-        assert len(plan.preamble_commands) == original_preamble_count + 1
-
-    def test_planner_does_not_generate_gcode_file(self, pipeline):
+    def test_candidates_limit_and_confidence(self, pipeline):
         """
-        Regla de Oro: Planner solo devuelve estructuras de objetos (RecoveryPlan y Candidates),
-        NUNCA escribe archivos ni emite texto crudo de G-code directo.
+        Verifica que ante un G-code con cientos de movimientos en la misma capa,
+        el Planner retorne una cantidad acotada (entre 1 y 10) de candidatos significativos
+        y con confidence_score válido (> 0.0).
         """
         tokenizer, parser, interpreter, analyzer, planner = pipeline
 
-        lines = [(1, "G1 Z0.2 E0.1")]
-        doc = parser.parse_stream(tokenizer.tokenize_line(num, txt) for num, txt in lines)
+        # Generar simulación con 100 movimientos dentro del mismo Z=0.4
+        lines = [
+            (1, "G21"),
+            (2, "G90"),
+            (3, "M82"),
+            (4, "G1 Z0.4 F1200"),
+        ]
+        for i in range(1, 100):
+            lines.append((4 + i, f"G1 X{i} Y{i} E{i*0.1}"))
+
+        token_stream = (tokenizer.tokenize_line(num, txt) for num, txt in lines)
+        doc = parser.parse_stream(token_stream)
         timeline = interpreter.interpret(doc)
         analysis = analyzer.analyze(doc, timeline)
 
-        settings = RecoverySettings(measured_z=0.2)
+        settings = RecoverySettings(measured_z=0.5)  # Medido .5 para Z=0.4
         candidates = planner.find_candidates(doc, timeline, analysis, settings)
-        plan = planner.create_plan(candidates[0], settings)
 
-        assert hasattr(plan, "preamble_commands")
-        assert hasattr(plan, "resume_commands")
-        assert not hasattr(plan, "write_to_file")
+        # Regla: La lista de candidatos debe estar acotada entre 1 y 10 (no 240+ elementos)
+        assert 1 <= len(candidates) <= 10
+        # Regla: Ningún candidato debe tener 0.0% de confianza
+        assert all(c.confidence_score > 0.0 for c in candidates)

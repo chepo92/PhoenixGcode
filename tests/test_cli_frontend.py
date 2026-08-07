@@ -64,12 +64,17 @@ class TestPhoenixCLIFrontend:
 
     def test_cli_recover_interactive_wizard_mode(self, sample_gcode: Path, tmp_path: Path):
         out_file = tmp_path / "wizard_out.gcode"
-        # Simular entradas de usuario en la consola: Z=0.4, 'A' para aceptar en menú, 'y' para confirmar
-        user_inputs = "0.4\nA\ny\n"
+        # Entradas del usuario:
+        # 1. "0.4\n" -> Ingresar Z
+        # 2. "\n"    -> Aceptar candidato [0] en prompt de candidatos
+        # 3. "A\n"   -> Aceptar plan en menú de edición
+        # 4. "y\n"   -> Confirmar generación final
+        user_inputs = "0.4\n\nA\ny\n"
         result = runner.invoke(
             app,
             ["recover", str(sample_gcode), "--output", str(out_file)],
             input=user_inputs,
         )
-        assert result.exit_code == 0
+        assert result.exit_code == 0, f"Error en la CLI: {result.output}"
         assert out_file.exists()
+        assert "PhoenixGCode Recovery File" in out_file.read_text(encoding="utf-8")
