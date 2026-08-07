@@ -269,3 +269,50 @@ body {
     font-size: 0.85rem;
     margin-bottom: 10px;
 }
+
+/* Footer & Links */
+.app-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.footer-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.footer-links a {
+    color: var(--accent);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: opacity 0.2s;
+}
+
+.footer-links a:hover {
+    text-decoration: underline;
+    opacity: 0.8;
+}
+
+.footer-icon {
+    fill: currentColor;
+}
+
+.sep {
+    color: var(--border);
+}
