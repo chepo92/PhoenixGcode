@@ -1,0 +1,9 @@
+{
+    "name": "PhoenixGCode Recovery",
+    "author": "PhoenixGCode Team",
+    "version": "1.0.0",
+    "description": "Frontend gráfico oficial para inspeccionar y recuperar impresiones fallidas con PhoenixGCode.",
+    "api": 8,
+    "supported_sdk_versions": [7, 8],
+    "main": "PhoenixGCodeCura.py"
+}
