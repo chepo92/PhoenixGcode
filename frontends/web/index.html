@@ -5,14 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PhoenixGCode – Web Workspace</title>
     <link rel="stylesheet" href="css/main.css">
-    <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
-    <!-- Runtime oficial Pyodide CDN -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
 </head>
 <body>
     <div class="workspace-layout">
-        <!-- Header Principal -->
         <header class="app-header">
             <div class="brand">
                 <img src="assets/icon.svg" alt="Phoenix Logo" class="app-icon">
@@ -24,10 +21,9 @@
             </div>
         </header>
 
-        <!-- Grid de Secciones del Workspace -->
         <main class="workspace-grid">
             
-            <!-- 1. Sección: Archivo -->
+            <!-- 1. Archivo -->
             <section class="card file-card">
                 <h2>Archivo G-Code</h2>
                 <div id="drop-zone" class="drop-zone disabled">
@@ -37,14 +33,15 @@
                         <p>Arrastra tu archivo G-code aquí o <strong>Haz Clic para seleccionar</strong></p>
                     </div>
                 </div>
+                
                 <div id="file-meta" class="file-meta hidden">
                     <p><strong>Nombre:</strong> <span id="meta-name">-</span></p>
                     <p><strong>Tamaño:</strong> <span id="meta-size">-</span></p>
-                    <p><strong>Estado:</strong> <span id="meta-status">Pendiente de Análisis</span></p>
+                    <p><strong>Estado:</strong> <span id="meta-status">Pendiente de Carga</span></p>
                 </div>
             </section>
 
-            <!-- 2. Sección: Información Core -->
+            <!-- 2. Información Core -->
             <section class="card info-card">
                 <h2>Información de Impresión</h2>
                 <div class="info-grid">
@@ -57,7 +54,7 @@
                 </div>
             </section>
 
-            <!-- 3. Sección: Benchmark & Métricas -->
+            <!-- 3. Benchmark -->
             <section class="card benchmark-card">
                 <h2>Benchmark & Métricas</h2>
                 <div class="metrics-grid">
@@ -70,18 +67,71 @@
                 </div>
             </section>
 
-            <!-- 4. Sección: Herramientas Workspace -->
+            <!-- 4. Herramientas Workspace -->
             <section class="card tools-card">
                 <h2>Herramientas</h2>
                 <div class="tools-actions">
-                    <button id="btn-tool-analyze" class="tool-btn active">Analyze</button>
-                    <button id="btn-tool-recover" class="tool-btn" disabled title="Módulo Recovery no activo">Recover</button>
+                    <button id="btn-tool-analyze" class="tool-btn" disabled>Analyze</button>
+                    <button id="btn-tool-recover" class="tool-btn" disabled>Recover</button>
                     <button id="btn-tool-optimize" class="tool-btn" disabled title="Módulo Optimizer no activo">Optimize</button>
                     <button id="btn-tool-compare" class="tool-btn" disabled title="Módulo Compare no activo">Compare</button>
                 </div>
             </section>
 
-            <!-- 5. Sección: Consola del Workspace -->
+            <!-- 5. Configuración de Recovery (Nuevo) -->
+            <section id="recovery-card" class="card recovery-card hidden">
+                <h2>Configuración de Recovery</h2>
+                <div class="recovery-form">
+                    <div class="form-group">
+                        <label for="rec-z-height">Altura Z Medida (mm):</label>
+                        <input type="number" id="rec-z-height" step="0.01" min="0" placeholder="Ej: 12.40">
+                        <button id="btn-calc-plan" class="btn-sm">Buscar Capas Candidatas</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rec-layer-select">Capa Candidata Seleccionada:</label>
+                        <select id="rec-layer-select" disabled>
+                            <option value="">Ingresa Altura Z primero...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="rec-home-mode">Estrategia de Home:</label>
+                            <select id="rec-home-mode">
+                                <option value="NONE">No realizar Home (NONE)</option>
+                                <option value="XY_ONLY" selected>Home X/Y Únicamente (XY_ONLY)</option>
+                                <option value="FULL">Home Completo X/Y/Z (FULL)</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label for="rec-pos-mode">Estrategia Posicionamiento:</label>
+                            <select id="rec-pos-mode">
+                                <option value="RELATIVE">Relativo / Asumir Posición actual</option>
+                                <option value="ABSOLUTE" selected>Absoluto (G90)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rec-extrusion-val">Valor E Inic. Recuperado (mm):</label>
+                        <input type="number" id="rec-extrusion-val" step="0.001" placeholder="Autodetectado por Core">
+                    </div>
+
+                    <button id="btn-generate-recovery" class="tool-btn primary" disabled>Generate Recovery File</button>
+                </div>
+            </section>
+
+            <!-- 6. Vista Previa / Exportación (Nuevo) -->
+            <section id="preview-card" class="card preview-card hidden">
+                <div class="card-header">
+                    <h2>Vista Previa del G-code de Recuperación</h2>
+                    <button id="btn-download-recovery" class="btn-sm success">Descargar G-Code</button>
+                </div>
+                <pre id="recovery-preview" class="code-preview">El código generado aparecerá aquí...</pre>
+            </section>
+
+            <!-- 7. Consola -->
             <section class="card console-card">
                 <div class="card-header">
                     <h2>Consola de Eventos</h2>
@@ -90,11 +140,10 @@
                 <div id="workspace-console" class="console-output"></div>
             </section>
 
-            <!-- 6. Sección: Inspector JSON API -->
+            <!-- 8. Inspector JSON -->
             <section class="card inspector-card">
                 <div class="card-header">
                     <h2>Inspector de Respuesta API (PhoenixGCodeAPI)</h2>
-                    <button id="btn-toggle-json" class="btn-sm">Expandir / Colapsar</button>
                 </div>
                 <pre id="json-inspector" class="json-tree">Esperando análisis de archivo...</pre>
             </section>
@@ -102,21 +151,9 @@
         </main>
     </div>
 
-    <!-- Módulos JavaScript -->
     <script src="js/console.js"></script>
     <script src="js/inspector.js"></script>
     <script src="js/python-bridge.js"></script>
     <script src="js/app.js"></script>
-
-    <!-- Registro del Service Worker -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('service-worker.js')
-                    .then(reg => console.log('ServiceWorker registrado:', reg.scope))
-                    .catch(err => console.warn('ServiceWorker error:', err));
-            });
-        }
-    </script>
 </body>
 </html>

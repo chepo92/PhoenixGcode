@@ -12,161 +12,236 @@ document.addEventListener("DOMContentLoaded", () => {
     const metaStatus = document.getElementById("meta-status");
 
     const btnAnalyze = document.getElementById("btn-tool-analyze");
+    const btnToolRecover = document.getElementById("btn-tool-recover");
 
-    // Variables de estado local (para no analizar automáticamente)
+    const recoveryCard = document.getElementById("recovery-card");
+    const recZInput = document.getElementById("rec-z-height");
+    const btnCalcPlan = document.getElementById("btn-calc-plan");
+    const recLayerSelect = document.getElementById("rec-layer-select");
+    const recHomeMode = document.getElementById("rec-home-mode");
+    const recExtrusionVal = document.getElementById("rec-extrusion-val");
+    const btnGenerateRecovery = document.getElementById("btn-generate-recovery");
+
+    const previewCard = document.getElementById("preview-card");
+    const recoveryPreview = document.getElementById("recovery-preview");
+    const btnDownloadRecovery = document.getElementById("btn-download-recovery");
+
     let currentFileBuffer = null;
     let currentFileName = "";
     let readTimeMs = 0;
+    let currentCandidates = [];
+    let generatedGCodeContent = null;
 
-    // Copiar Consola
     document.getElementById("btn-copy-console").addEventListener("click", () => window.appConsole.copyToClipboard());
 
-    // Inicializar Entorno Python
     bridge.init((msg) => {
         statusText.innerText = msg;
     }).then(() => {
         statusTag.className = "status-tag status-ready";
         dropZone.classList.remove("disabled");
         fileInput.disabled = false;
-        
+
         document.getElementById("bench-pyodide").innerText = `${bridge.metrics.pyodideLoadTime.toFixed(2)} ms`;
         document.getElementById("bench-wheel").innerText = `${bridge.metrics.phoenixLoadTime.toFixed(2)} ms`;
         document.getElementById("bench-wasm-mem").innerText = `${bridge.getMemoryUsageMB()} MB`;
     }).catch((err) => {
         statusTag.className = "status-tag status-error";
-        statusText.innerText = `Error Carga: ${err.message}`;
+        statusText.innerText = `Error: ${err.message}`;
         window.appConsole.error(err.message);
     });
 
-    /**
-     * Limpia los resultados previos cuando se sube un nuevo archivo.
-     */
-    function resetResults() {
-        document.getElementById("info-firmware").innerText = "-";
-        document.getElementById("info-lines").innerText = "-";
-        document.getElementById("info-layers").innerText = "-";
-        document.getElementById("info-zrange").innerText = "-";
-        document.getElementById("info-extrusion").innerText = "-";
-        document.getElementById("info-temps").innerText = "-";
-
-        document.getElementById("bench-analysis").innerText = "-";
-        document.getElementById("bench-total").innerText = "-";
-
-        if (window.appInspector) {
-            window.appInspector.clear();
-        }
+    function resetWorkspace() {
+        recoveryCard.classList.add("hidden");
+        previewCard.classList.add("hidden");
+        btnToolRecover.disabled = true;
+        btnToolRecover.classList.remove("active");
+        currentCandidates = [];
+        generatedGCodeContent = null;
     }
 
-    /**
-     * PASO 1: Carga local del archivo en RAM.
-     * Muestra el porcentaje de progreso en texto y cambia el estado a "Listo para analizar".
-     * NO ejecuta el análisis en Python.
-     */
     function loadFile(file) {
         if (!file) return;
 
         currentFileBuffer = null;
         currentFileName = file.name;
-        resetResults();
+        resetWorkspace();
 
         metaName.innerText = file.name;
         metaSize.innerText = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
         metaStatus.innerText = "Cargando (0%)...";
-        
+
         fileMeta.classList.remove("hidden");
         btnAnalyze.disabled = true;
-        btnAnalyze.classList.remove("active");
-
-        window.appConsole.log(`Archivo seleccionado: ${file.name}`);
 
         const reader = new FileReader();
         const tStart = performance.now();
 
-        // Progreso de lectura local
-        reader.onprogress = (event) => {
-            if (event.lengthComputable) {
-                const percent = Math.round((event.loaded / event.total) * 100);
+        reader.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
                 metaStatus.innerText = `Cargando (${percent}%)...`;
             }
         };
 
-        reader.onload = (event) => {
+        reader.onload = (e) => {
             const tEnd = performance.now();
             readTimeMs = tEnd - tStart;
-            currentFileBuffer = event.target.result;
+            currentFileBuffer = e.target.result;
 
             metaStatus.innerText = "Listo para analizar";
             document.getElementById("bench-read").innerText = `${readTimeMs.toFixed(2)} ms`;
+            window.appConsole.log(`Archivo cargado en RAM (${readTimeMs.toFixed(2)} ms).`);
 
-            window.appConsole.log(`Archivo cargado en memoria RAM en ${readTimeMs.toFixed(2)} ms. Estado: Listo para analizar.`);
-
-            // Habilitar exclusivamente el botón Analyze
             btnAnalyze.disabled = false;
             btnAnalyze.classList.add("active");
-        };
-
-        reader.onerror = () => {
-            metaStatus.innerText = "Error al leer archivo";
-            window.appConsole.error("Error leyendo el archivo.");
         };
 
         reader.readAsArrayBuffer(file);
     }
 
-    /**
-     * PASO 2: Ejecución del Análisis en Core.
-     * Se dispara ÚNICAMENTE al presionar el botón 'Analyze'.
-     */
     async function executeAnalysis() {
-        if (!currentFileBuffer) {
-            window.appConsole.warn("Debes seleccionar un archivo primero.");
-            return;
-        }
+        if (!currentFileBuffer) return;
 
         metaStatus.innerText = "Analizando con Core...";
         window.appConsole.log("Ejecutando PhoenixGCodeAPI.analyze_file...");
-        btnAnalyze.disabled = true;
 
         try {
             const analysis = await bridge.analyzeGCodeBinary(currentFileName, currentFileBuffer);
 
-            window.appConsole.log(`Análisis completado. Capas: ${analysis.total_layers}, Líneas: ${analysis.total_lines}`);
-
-            // Renderizar Información del Core
-            document.getElementById("info-firmware").innerText = "Marlin / Cura (Detectado)";
+            document.getElementById("info-firmware").innerText = "Detectado por Core";
             document.getElementById("info-lines").innerText = analysis.total_lines.toLocaleString();
             document.getElementById("info-layers").innerText = analysis.total_layers;
             document.getElementById("info-zrange").innerText = `0.00 - ${analysis.max_z_height.toFixed(2)} mm`;
-            document.getElementById("info-extrusion").innerText = "ABSOLUTE (M82)";
-            document.getElementById("info-temps").innerText = "210°C / 60°C";
+            document.getElementById("info-extrusion").innerText = "ABSOLUTE";
+            document.getElementById("info-temps").innerText = "Ok";
 
-            // Renderizar Métricas
             document.getElementById("bench-analysis").innerText = `${analysis.analysis_time_ms.toFixed(2)} ms`;
             document.getElementById("bench-total").innerText = `${(readTimeMs + analysis.analysis_time_ms).toFixed(2)} ms`;
-            document.getElementById("bench-wasm-mem").innerText = `${bridge.getMemoryUsageMB()} MB`;
 
-            // Renderizar Inspector JSON
             window.appInspector.render(analysis);
             metaStatus.innerText = "Análisis Completado";
 
+            // Activar botón de Recovery
+            btnToolRecover.disabled = false;
+            btnToolRecover.classList.add("active");
+            window.appConsole.log("Análisis exitoso. Herramienta Recovery habilitada.");
+
         } catch (err) {
-            window.appConsole.error(`Error en Core: ${err.message}`);
+            window.appConsole.error(`Error en análisis: ${err.message}`);
             metaStatus.innerText = "Error de Análisis";
-        } finally {
-            btnAnalyze.disabled = false;
         }
     }
 
-    // Eventos
+    // Activar panel de Recovery
+    btnToolRecover.addEventListener("click", () => {
+        recoveryCard.classList.remove("hidden");
+        recoveryCard.scrollIntoView({ behavior: 'smooth' });
+        window.appConsole.log("Panel Recovery activado.");
+    });
+
+    // Calcular capas candidatas
+    btnCalcPlan.addEventListener("click", async () => {
+        const targetZ = parseFloat(recZInput.value);
+        if (isNaN(targetZ) || targetZ <= 0) {
+            window.appConsole.warn("Ingresa una altura Z válida mayor a 0 mm.");
+            return;
+        }
+
+        window.appConsole.log(`Consultando Core para capas candidatas en Z=${targetZ} mm...`);
+        recLayerSelect.disabled = true;
+        recLayerSelect.innerHTML = "<option>Buscando candidatos...</option>";
+
+        try {
+            const plan = await bridge.buildRecoveryPlan(currentFileName, currentFileBuffer, targetZ);
+            currentCandidates = plan.candidates || [];
+
+            recLayerSelect.innerHTML = "";
+            if (currentCandidates.length === 0) {
+                recLayerSelect.innerHTML = "<option value=''>No se encontraron capas candidatas</option>";
+                window.appConsole.warn("El Core no devolvió candidatos para la altura Z especificada.");
+            } else {
+                currentCandidates.forEach((cand, idx) => {
+                    const opt = document.createElement("option");
+                    opt.value = idx;
+                    opt.innerText = `Capa ${cand.layer_index} (Z=${cand.z_height} mm) - L:${cand.line_number}`;
+                    recLayerSelect.appendChild(opt);
+                });
+                recLayerSelect.disabled = false;
+                
+                // Actualizar valor E por defecto
+                if (currentCandidates[0].initial_extrusion !== undefined) {
+                    recExtrusionVal.value = currentCandidates[0].initial_extrusion;
+                }
+
+                btnGenerateRecovery.disabled = false;
+                window.appConsole.log(`Core devolvió ${currentCandidates.length} capas candidatas.`);
+            }
+        } catch (err) {
+            window.appConsole.error(`Error calculando Recovery Plan: ${err.message}`);
+        }
+    });
+
+    // Al cambiar la capa elegida, actualizar el valor E
+    recLayerSelect.addEventListener("change", (e) => {
+        const idx = parseInt(e.target.value);
+        if (!isNaN(idx) && currentCandidates[idx]) {
+            recExtrusionVal.value = currentCandidates[idx].initial_extrusion || 0;
+        }
+    });
+
+    // Generar archivo final G-Code
+    btnGenerateRecovery.addEventListener("click", async () => {
+        const candidateIdx = parseInt(recLayerSelect.value);
+        const homeMode = recHomeMode.value;
+        const overrideE = recExtrusionVal.value ? parseFloat(recExtrusionVal.value) : null;
+
+        window.appConsole.log(`Iniciando generación de G-code con Capa Índice ${candidateIdx}, Home=${homeMode}...`);
+
+        try {
+            generatedGCodeContent = await bridge.generateRecoveryGCode(
+                currentFileName,
+                currentFileBuffer,
+                candidateIdx,
+                homeMode,
+                overrideE
+            );
+
+            // Muestra de las primeras líneas en la vista previa
+            const previewLines = generatedGCodeContent.split("\n").slice(0, 30).join("\n");
+            recoveryPreview.textContent = previewLines + "\n\n... [Contenido truncado en la vista previa] ...";
+
+            previewCard.classList.remove("hidden");
+            previewCard.scrollIntoView({ behavior: 'smooth' });
+
+            window.appConsole.log("Archivo de recuperación generado exitosamente en memoria.");
+        } catch (err) {
+            window.appConsole.error(`Error generando G-Code de recuperación: ${err.message}`);
+        }
+    });
+
+    // Descargar archivo generado
+    btnDownloadRecovery.addEventListener("click", () => {
+        if (!generatedGCodeContent) return;
+
+        const blob = new Blob([generatedGCodeContent], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `recovery_${currentFileName}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        window.appConsole.log(`Descargado archivo: recovery_${currentFileName}`);
+    });
+
     fileInput.addEventListener("change", (e) => loadFile(e.target.files[0]));
     btnAnalyze.addEventListener("click", () => executeAnalysis());
 
-    // Drag & Drop
     dropZone.addEventListener("dragover", (e) => { e.preventDefault(); });
     dropZone.addEventListener("drop", (e) => {
         e.preventDefault();
-        if (e.dataTransfer.files.length > 0) {
-            loadFile(e.dataTransfer.files[0]);
-        }
+        if (e.dataTransfer.files.length > 0) loadFile(e.dataTransfer.files[0]);
     });
 });

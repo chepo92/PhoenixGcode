@@ -165,3 +165,107 @@ body {
 }
 
 .hidden { display: none !important; }
+
+.progress-container {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress-bar-bg {
+    flex: 1;
+    height: 8px;
+    background-color: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background-color: var(--accent);
+    transition: width 0.1s ease-out;
+}
+
+.progress-text {
+    font-size: 0.8rem;
+    font-family: monospace;
+    color: var(--accent);
+    min-width: 40px;
+}
+
+
+/* Estilos para el formulario de Recovery */
+.recovery-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+}
+
+.form-group.half { flex: 1; }
+
+.form-group label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.form-group input, .form-group select {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.tool-btn.primary {
+    background: var(--accent);
+    color: #000;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+.btn-sm.success {
+    background: var(--success);
+    color: #000;
+    font-weight: bold;
+}
+
+.code-preview {
+    background: var(--console-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    height: 220px;
+    overflow: auto;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: #86efac;
+}
+
+.error-banner {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid #ef4444;
+    color: #fca5a5;
+    padding: 10px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+}

@@ -22,3 +22,23 @@ El **Workspace** representa una sesión de trabajo sobre un único archivo G-cod
 |  - Analyze        |  - Logs y Errores             |  - Árbol JSON     |
 |  - Recover (Des)  |  - Exportar/Copiar            |    PhoenixGCode   |
 +-------------------+-------------------------------+-------------------+
+
+
+## 5. Recovery Workspace
+La funcionalidad de **Recovery** permite reanudar una impresión 3D fallida desde una altura Z determinada.
+
+### Flujo de Interacción
+```text
+[ Archivo Cargado ]
+       │
+       ▼ (1. Analyze)
+[ PhoenixGCodeAPI.analyze_file ]
+       │
+       ▼ (2. Configurar Z)
+[ PhoenixGCodeAPI.build_recovery_plan(target_z) ]
+       │
+       ▼ (3. Selección de Capa & Configuración)
+[ PhoenixGCodeAPI.generate_recovery_gcode(...) ]
+       │
+       ▼ (4. Preview & Download)
+[ Descarga de recovery_<filename>.gcode en el Navegador ]

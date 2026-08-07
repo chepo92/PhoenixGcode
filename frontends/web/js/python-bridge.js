@@ -1,5 +1,5 @@
 /**
- * PythonBridge oficial: Carga el wheel (.whl) de PhoenixGCode en Pyodide MEMFS.
+ * PythonBridge: Invocación oficial de PhoenixGCodeAPI.
  */
 class PhoenixPythonBridge {
     constructor() {
@@ -10,29 +10,25 @@ class PhoenixPythonBridge {
     async init(onStatusUpdate) {
         const t0 = performance.now();
         onStatusUpdate("Cargando Pyodide Runtime...");
-        window.appConsole.log("Inicializando Pyodide WebAssembly Runtime...");
+        window.appConsole.log("Inicializando Pyodide WASM...");
 
         this.pyodide = await loadPyodide();
         const t1 = performance.now();
         this.metrics.pyodideLoadTime = t1 - t0;
-        window.appConsole.log(`Pyodide cargado en ${(this.metrics.pyodideLoadTime).toFixed(2)} ms`);
 
-        onStatusUpdate("Instalando dependencias (micropip + chardet)...");
-        window.appConsole.log("Instalando dependencia chardet via micropip...");
+        onStatusUpdate("Instalando dependencias (chardet)...");
         await this.pyodide.loadPackage("micropip");
         const micropip = this.pyodide.pyimport("micropip");
         await micropip.install("chardet");
 
         onStatusUpdate("Instalando Wheel de PhoenixGCode...");
         const whlUrl = await this._findWheelUrl();
-        window.appConsole.log(`Descargando e instalando wheel: ${whlUrl}`);
         await micropip.install(whlUrl);
 
         this.pyodide.runPython(`from phoenixgcode.api import PhoenixGCodeAPI`);
         const t2 = performance.now();
         this.metrics.phoenixLoadTime = t2 - t1;
 
-        window.appConsole.log(`Core de PhoenixGCode cargado en ${(this.metrics.phoenixLoadTime).toFixed(2)} ms`);
         onStatusUpdate("Ready.");
     }
 
@@ -49,7 +45,7 @@ class PhoenixPythonBridge {
                 if (response.ok) return url;
             } catch (e) {}
         }
-        throw new Error("No se encontró el archivo .whl en 'dist/'. Ejecuta 'python -m build --wheel'.");
+        throw new Error("No se encontró el Wheel en dist/. Ejecuta 'python -m build --wheel'.");
     }
 
     async analyzeGCodeBinary(filename, arrayBuffer) {
@@ -71,6 +67,63 @@ class PhoenixPythonBridge {
         const resultObj = JSON.parse(jsonResultStr);
         resultObj.analysis_time_ms = t1 - t0;
         return resultObj;
+    }
+
+    /**
+     * Construye el Recovery Plan llamando a PhoenixGCodeAPI.build_recovery_plan
+     */
+    async buildRecoveryPlan(filename, arrayBuffer, targetZ) {
+        const virtualPath = `/tmp/${filename}`;
+        this.pyodide.FS.writeFile(virtualPath, new Uint8Array(arrayBuffer));
+
+        const code = `
+            import json
+            plan = PhoenixGCodeAPI.build_recovery_plan("${virtualPath}", target_z=${targetZ})
+            json.dumps(plan)
+        `;
+
+        const jsonResultStr = await this.pyodide.runPythonAsync(code);
+        try { this.pyodide.FS.unlink(virtualPath); } catch (e) {}
+
+        return JSON.parse(jsonResultStr);
+    }
+
+    /**
+     * Genera el nuevo archivo G-code recuperado llamando a PhoenixGCodeAPI.generate_recovery_gcode
+     */
+    async generateRecoveryGCode(filename, arrayBuffer, selectedCandidateIndex, homeMode, overrideE) {
+        const virtualPath = `/tmp/${filename}`;
+        const outputPath = `/tmp/recovery_${filename}`;
+        this.pyodide.FS.writeFile(virtualPath, new Uint8Array(arrayBuffer));
+
+        const code = `
+            import json
+            from phoenixgcode.api import PhoenixGCodeAPI
+            
+            plan_dict = PhoenixGCodeAPI.build_recovery_plan("${virtualPath}", target_z=0.0)
+            
+            # Invocar generación mediante la API
+            out_path = PhoenixGCodeAPI.generate_recovery_gcode(
+                original_filepath="${virtualPath}",
+                output_filepath="${outputPath}",
+                candidate_index=${selectedCandidateIndex},
+                home_mode="${homeMode}",
+                override_extrusion=${overrideE !== null ? overrideE : 'None'}
+            )
+            
+            with open("${outputPath}", "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            content
+        `;
+
+        const generatedGCode = await this.pyodide.runPythonAsync(code);
+
+        try { 
+            this.pyodide.FS.unlink(virtualPath);
+            this.pyodide.FS.unlink(outputPath);
+        } catch (e) {}
+
+        return generatedGCode;
     }
 
     getMemoryUsageMB() {
