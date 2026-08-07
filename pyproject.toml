@@ -10,10 +10,11 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "chardet>=5.0.0",
+    "typer>=0.9.0",
 ]
 
 [project.scripts]
-phoenix = "phoenixgcode.cli.main:main"
+phoenix = "frontends.cli.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

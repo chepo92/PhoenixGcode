@@ -2,44 +2,29 @@
 API Pública de PhoenixGCode.
 
 Fachada principal que expone los servicios de la biblioteca para consumo
-de frontends, plugins (Cura, OctoPrint, Print2Go) y APIs externas.
+de frontends (CLI, Cura, OctoPrint, Print2Go) y APIs externas.
 """
 
 from pathlib import Path
 from typing import Union, List, Dict, Any, Optional
-from dataclasses import asdict
 
 from phoenixgcode.reader.reader import GCodeReader
 from phoenixgcode.tokenizer.tokenizer import GCodeTokenizer
 from phoenixgcode.parser.parser import GCodeParser
 from phoenixgcode.interpreter.interpreter import GCodeInterpreter
-from phoenixgcode.analyzer.analyzer import GCodeAnalyzer, AnalysisResult
+from phoenixgcode.analyzer.analyzer import GCodeAnalyzer
 from phoenixgcode.transformer.recovery.planner import RecoveryPlanner
 from phoenixgcode.transformer.recovery.builder import RecoveryBuilder
 from phoenixgcode.writer.writer import GCodeWriter
 from phoenixgcode.model.recovery_settings import RecoverySettings, RecoveryStrategyType
-from phoenixgcode.model.recovery_plan import RecoveryPlan, RecoveryCandidate
 
 
 class PhoenixGCodeAPI:
-    """
-    Punto de entrada único y oficial para clientes externos.
-    
-    Toda la lógica de análisis, interpretación y transformación reside aquí.
-    Los plugins simplemente invocan estos métodos.
-    """
+    """Punto de entrada único y oficial para la interacción de todos los frontends con el core."""
 
     @staticmethod
     def analyze_file(file_path: Union[str, Path]) -> Dict[str, Any]:
-        """
-        Lee y analiza un archivo G-code, devolviendo un resumen estructurado listo para JSON.
-
-        Args:
-            file_path: Ruta al archivo G-code.
-
-        Returns:
-            Diccionario con metadatos, capas, alturas y snapshots detectados.
-        """
+        """Devuelve un resumen completo del análisis de un archivo G-code."""
         reader = GCodeReader(file_path)
         tokenizer = GCodeTokenizer()
         parser = GCodeParser()
@@ -52,30 +37,54 @@ class PhoenixGCodeAPI:
         analysis = analyzer.analyze(document, timeline)
 
         return {
-            "total_commands": len(document),
+            "source_file": str(file_path),
+            "total_lines": len(document),
             "total_layers": analysis.layer_index.total_layers,
             "max_z_height": analysis.max_z_height,
             "first_extrusion_line": analysis.first_extrusion_command_index,
             "last_extrusion_line": analysis.last_extrusion_command_index,
+            "comment_count": len(analysis.command_index.comment_lines),
             "available_z_heights": analysis.z_index.sorted_z_heights,
         }
+
+    @staticmethod
+    def validate_file(file_path: Union[str, Path]) -> Dict[str, Any]:
+        """Valida que un archivo G-code pueda ser leído, tokenizado y parseado correctamente."""
+        try:
+            reader = GCodeReader(file_path)
+            encoding = reader.detect_encoding()
+            tokenizer = GCodeTokenizer()
+            parser = GCodeParser()
+
+            tokens = tokenizer.tokenize_stream(reader.read_lines(encoding=encoding))
+            document = parser.parse_stream(tokens)
+
+            return {
+                "valid": True,
+                "encoding": encoding,
+                "total_commands": len(document),
+                "error": None,
+            }
+        except Exception as e:
+            return {
+                "valid": False,
+                "encoding": None,
+                "total_commands": 0,
+                "error": str(e),
+            }
 
     @staticmethod
     def plan_recovery(
         file_path: Union[str, Path],
         measured_z: float,
+        candidate_index: int = 0,
         strategy_name: str = "HOME_XY",
         override_hotend_temp: Optional[float] = None,
         override_bed_temp: Optional[float] = None,
         override_fan_speed: Optional[float] = None,
         z_hop_distance: float = 10.0,
     ) -> Dict[str, Any]:
-        """
-        Crea una propuesta de RecoveryPlan inspeccionable para el cliente.
-
-        Returns:
-            Diccionario con la información del candidato sugerido y el estado a restaurar.
-        """
+        """Calcula los candidatos y construye la vista previa del Recovery Plan."""
         reader = GCodeReader(file_path)
         tokenizer = GCodeTokenizer()
         parser = GCodeParser()
@@ -87,7 +96,7 @@ class PhoenixGCodeAPI:
         timeline = interpreter.interpret(document)
         analysis = analyzer.analyze(document, timeline)
 
-        strategy = RecoveryStrategyType[strategy_name]
+        strategy = RecoveryStrategyType[strategy_name.upper()]
         settings = RecoverySettings(
             measured_z=measured_z,
             strategy=strategy,
@@ -101,16 +110,31 @@ class PhoenixGCodeAPI:
         if not candidates:
             raise ValueError(f"No se encontraron puntos de recuperación para Z={measured_z}mm")
 
-        best_candidate = candidates[0]
-        plan = planner.create_plan(best_candidate, settings)
+        if candidate_index < 0 or candidate_index >= len(candidates):
+            raise IndexError(f"Índice de candidato {candidate_index} fuera de rango. Candidatos disponibles: {len(candidates)}")
 
+        selected_candidate = candidates[candidate_index]
+        plan = planner.create_plan(selected_candidate, settings)
         snap = plan.reconstructed_snapshot
+
         return {
+            "source_file": str(file_path),
+            "candidates": [
+                {
+                    "index": i,
+                    "line_number": c.line_number,
+                    "layer_index": c.layer_index,
+                    "target_z": c.target_z,
+                    "confidence_score": c.confidence_score,
+                }
+                for i, c in enumerate(candidates)
+            ],
+            "selected_candidate_index": candidate_index,
             "candidate": {
-                "line_number": best_candidate.line_number,
-                "layer_index": best_candidate.layer_index,
-                "target_z": best_candidate.target_z,
-                "confidence_score": best_candidate.confidence_score,
+                "line_number": selected_candidate.line_number,
+                "layer_index": selected_candidate.layer_index,
+                "target_z": selected_candidate.target_z,
+                "confidence_score": selected_candidate.confidence_score,
             },
             "reconstructed_state": {
                 "x": snap.position.x,
@@ -118,12 +142,13 @@ class PhoenixGCodeAPI:
                 "z": snap.position.z,
                 "extruder_e": snap.extruder_position,
                 "feedrate": snap.feedrate,
-                "bed_temp": settings.override_bed_temp or snap.bed_temperature,
-                "hotend_temp": settings.override_hotend_temp or snap.hotend_temperatures.get(snap.active_tool, 200.0),
-                "fan_speed": settings.override_fan_speed or snap.fan_speed,
+                "bed_temp": settings.override_bed_temp if settings.override_bed_temp is not None else snap.bed_temperature,
+                "hotend_temp": settings.override_hotend_temp if settings.override_hotend_temp is not None else snap.hotend_temperatures.get(snap.active_tool, 200.0),
+                "fan_speed": settings.override_fan_speed if settings.override_fan_speed is not None else snap.fan_speed,
+                "extrusion_mode": snap.extrusion_mode.name,
+                "positioning_mode": snap.positioning_mode.name,
             },
-            "preamble_preview": [cmd.raw_text for cmd in plan.preamble_commands if cmd.raw_text],
-            "resume_preview": [cmd.raw_text for cmd in plan.resume_commands if cmd.raw_text],
+            "strategy": strategy.name,
         }
 
     @staticmethod
@@ -131,18 +156,14 @@ class PhoenixGCodeAPI:
         input_path: Union[str, Path],
         output_path: Union[str, Path],
         measured_z: float,
+        candidate_index: int = 0,
         strategy_name: str = "HOME_XY",
         override_hotend_temp: Optional[float] = None,
         override_bed_temp: Optional[float] = None,
         override_fan_speed: Optional[float] = None,
         z_hop_distance: float = 10.0,
     ) -> str:
-        """
-        Ejecuta el ciclo completo y escribe el archivo Recovery.gcode en la ruta especificada.
-
-        Returns:
-            Ruta absoluta del archivo generado.
-        """
+        """Ejecuta el ciclo de transformación completo y compila el archivo Recovery.gcode."""
         reader = GCodeReader(input_path)
         tokenizer = GCodeTokenizer()
         parser = GCodeParser()
@@ -156,7 +177,7 @@ class PhoenixGCodeAPI:
         timeline = interpreter.interpret(document)
         analysis = analyzer.analyze(document, timeline)
 
-        strategy = RecoveryStrategyType[strategy_name]
+        strategy = RecoveryStrategyType[strategy_name.upper()]
         settings = RecoverySettings(
             measured_z=measured_z,
             strategy=strategy,
@@ -170,7 +191,8 @@ class PhoenixGCodeAPI:
         if not candidates:
             raise ValueError(f"No se encontraron puntos de recuperación para Z={measured_z}mm")
 
-        plan = planner.create_plan(candidates[0], settings)
+        selected_candidate = candidates[candidate_index]
+        plan = planner.create_plan(selected_candidate, settings)
         recovery_doc = builder.build_document(document, plan, settings)
         result_path = writer.write_to_file(recovery_doc, output_path)
 
