@@ -1,0 +1,52 @@
+<div id="tab_plugin_phoenixgcode">
+    <h3><i class="icon-fire"></i> PhoenixGCode - Impresión Interrumpida</h3>
+    <p class="muted"><em>Understand G-code before changing it.</em></p>
+
+    <div class="row-fluid">
+        <!-- Columna Izquierda: Selección de Archivo y Ajustes -->
+        <div class="span6">
+            <div class="well">
+                <h4>1. Archivo y Medición</h4>
+                
+                <label>Seleccionar G-code existente:</label>
+                <select data-bind="options: availableFiles, optionsText: 'name', optionsValue: 'path', value: selectedFile, optionsCaption: 'Elija un archivo...'"></select>
+                <button class="btn btn-mini" data-bind="click: loadFiles"><i class="icon-refresh"></i> Actualizar</button>
+
+                <br/><br/>
+                <label><strong>Altura Z Medida (mm):</strong></label>
+                <input type="number" step="0.01" class="input-medium" data-bind="value: measuredZ" placeholder="Ej. 12.4" />
+
+                <label>Estrategia de Homing:</label>
+                <select data-bind="value: selectedStrategy">
+                    <option value="HOME_XY">HOME_XY (Recomendado)</option>
+                    <option value="MANUAL_POSITION">MANUAL_POSITION (G92)</option>
+                    <option value="HOME_XYZ">HOME_XYZ Completo</option>
+                    <option value="CUSTOM_SCRIPT">Script Personalizado</option>
+                </select>
+
+                <hr/>
+                <button class="btn btn-primary" data-bind="click: planRecovery, enable: selectedFile() && measuredZ() > 0">
+                    <i class="icon-search"></i> Generar Recovery Plan
+                </button>
+            </div>
+        </div>
+
+        <!-- Columna Derecha: Vista Previa del Plan de PhoenixGCode -->
+        <div class="span6">
+            <div class="well" data-bind="visible: planResult">
+                <h4>2. Resumen del Recovery Plan</h4>
+                <!-- ko if: planResult -->
+                <p><strong>Línea de Reanudación:</strong> <span data-bind="text: planResult().candidate.line_number"></span></p>
+                <p><strong>Capa Estimada:</strong> #<span data-bind="text: planResult().candidate.layer_index"></span></p>
+                <p><strong>Z en G-code:</strong> <span data-bind="text: planResult().candidate.target_z"></span> mm</p>
+                <p><strong>Confianza del Plan:</strong> <span class="badge badge-success" data-bind="text: (planResult().candidate.confidence_score * 100).toFixed(1) + '%'"></span></p>
+                
+                <hr/>
+                <button class="btn btn-success btn-block" data-bind="click: executeRecovery">
+                    <i class="icon-play icon-white"></i> Guardar Recovery.gcode en OctoPrint
+                </button>
+                <!-- /ko -->
+            </div>
+        </div>
+    </div>
+</div>
