@@ -13,7 +13,7 @@ class CLIFormatter:
         banner = (
             "==========================================================\n"
             " PhoenixGCode Recovery Wizard\n"
-            " \"Understand G-code before changing it.\"\n"
+            " \"A universal G-code analysis and failed print recovery library.\"\n"
             "=========================================================="
         )
         print(banner)

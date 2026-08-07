@@ -32,7 +32,7 @@ def print_banner() -> None:
 |  __/| | | | (_) |  __/ | | | >  <| |_| | |__| (_) | (_|  __/
 |_|   |_| |_|\___/ \___|_| |_|_/_/\_\\___/\____\___/ \__,_\___|
 
-        "Understand G-code before changing it."
+        "A universal G-code analysis and failed print recovery library."
 ===========================================================
 """
     print(banner)
