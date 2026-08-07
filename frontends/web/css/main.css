@@ -1,0 +1,28 @@
+.progress-container {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.progress-bar-bg {
+    flex: 1;
+    height: 8px;
+    background-color: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    width: 0%;
+    height: 100%;
+    background-color: var(--accent);
+    transition: width 0.1s ease-out;
+}
+
+.progress-text {
+    font-size: 0.8rem;
+    font-family: monospace;
+    color: var(--accent);
+    min-width: 40px;
+}

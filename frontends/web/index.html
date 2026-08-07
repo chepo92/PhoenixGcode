@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhoenixGCode – Web Workspace</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="icon" type="image/svg+xml" href="./assets/icon.svg">
+    <!-- Runtime oficial Pyodide CDN -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+</head>
+<body>
+    <div class="workspace-layout">
+        <!-- Header Principal -->
+        <header class="app-header">
+            <div class="brand">
+                <img src="./assets/icon.svg" alt="Phoenix Logo" class="app-icon">
+                <h1>PhoenixGCode <span>Workspace</span></h1>
+            </div>
+            <div id="system-status" class="status-tag status-loading">
+                <span class="status-dot"></span>
+                <span id="status-text">Inicializando Pyodide...</span>
+            </div>
+        </header>
+
+        <!-- Grid de Secciones del Workspace -->
+        <main class="workspace-grid">
+            
+            <!-- 1. Sección: Archivo -->
+            <section class="card file-card">
+                <h2>Archivo G-Code</h2>
+                <div id="drop-zone" class="drop-zone disabled">
+                    <input type="file" id="file-input" accept=".gcode,.g" disabled />
+                    <div class="drop-prompt">
+                        <span class="drop-icon">📁</span>
+                        <p>Arrastra tu archivo G-code aquí o <strong>Haz Clic para seleccionar</strong></p>
+                    </div>
+                </div>
+                
+                <div id="file-meta" class="file-meta hidden">
+                    <p><strong>Nombre:</strong> <span id="meta-name">-</span></p>
+                    <p><strong>Tamaño:</strong> <span id="meta-size">-</span></p>
+                    <p><strong>Estado:</strong> <span id="meta-status">Pendiente de Carga</span></p>
+                    
+                    <!-- Indicador de Progreso de Lectura -->
+                    <div id="upload-progress-container" class="progress-container hidden">
+                        <div class="progress-bar-bg">
+                            <div id="upload-progress-bar" class="progress-bar-fill"></div>
+                        </div>
+                        <span id="upload-progress-text" class="progress-text">0%</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Sección: Información Core -->
+            <section class="card info-card">
+                <h2>Información de Impresión</h2>
+                <div class="info-grid">
+                    <div class="info-item"><span class="label">Slicer/Firmware:</span> <span id="info-firmware" class="val">-</span></div>
+                    <div class="info-item"><span class="label">Total Líneas:</span> <span id="info-lines" class="val">-</span></div>
+                    <div class="info-item"><span class="label">Total Capas:</span> <span id="info-layers" class="val">-</span></div>
+                    <div class="info-item"><span class="label">Rango Z:</span> <span id="info-zrange" class="val">-</span></div>
+                    <div class="info-item"><span class="label">Modo Extrusión:</span> <span id="info-extrusion" class="val">-</span></div>
+                    <div class="info-item"><span class="label">Temp Hotend / Bed:</span> <span id="info-temps" class="val">-</span></div>
+                </div>
+            </section>
+
+            <!-- 3. Sección: Benchmark & Métricas -->
+            <section class="card benchmark-card">
+                <h2>Benchmark & Métricas</h2>
+                <div class="metrics-grid">
+                    <div class="metric"><span class="label">Carga Pyodide:</span> <span id="bench-pyodide">-</span></div>
+                    <div class="metric"><span class="label">Carga Wheel Core:</span> <span id="bench-wheel">-</span></div>
+                    <div class="metric"><span class="label">Lectura ArrayBuffer:</span> <span id="bench-read">-</span></div>
+                    <div class="metric"><span class="label">Análisis Core (API):</span> <span id="bench-analysis">-</span></div>
+                    <div class="metric highlight"><span class="label">Tiempo Total:</span> <span id="bench-total">-</span></div>
+                    <div class="metric"><span class="label">Memoria WASM Heap:</span> <span id="bench-wasm-mem">-</span></div>
+                </div>
+            </section>
+
+            <!-- 4. Sección: Herramientas Workspace -->
+            <section class="card tools-card">
+                <h2>Herramientas</h2>
+                <div class="tools-actions">
+                    <button id="btn-tool-analyze" class="tool-btn" disabled>Analyze</button>
+                    <button id="btn-tool-recover" class="tool-btn" disabled title="Módulo Recovery no activo">Recover</button>
+                    <button id="btn-tool-optimize" class="tool-btn" disabled title="Módulo Optimizer no activo">Optimize</button>
+                    <button id="btn-tool-compare" class="tool-btn" disabled title="Módulo Compare no activo">Compare</button>
+                </div>
+            </section>
+
+            <!-- 5. Sección: Consola del Workspace -->
+            <section class="card console-card">
+                <div class="card-header">
+                    <h2>Consola de Eventos</h2>
+                    <button id="btn-copy-console" class="btn-sm">Copiar Consola</button>
+                </div>
+                <div id="workspace-console" class="console-output"></div>
+            </section>
+
+            <!-- 6. Sección: Inspector JSON API -->
+            <section class="card inspector-card">
+                <div class="card-header">
+                    <h2>Inspector de Respuesta API (PhoenixGCodeAPI)</h2>
+                    <button id="btn-toggle-json" class="btn-sm">Expandir / Colapsar</button>
+                </div>
+                <pre id="json-inspector" class="json-tree">Esperando análisis de archivo...</pre>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Módulos JavaScript -->
+    <script src="./js/console.js"></script>
+    <script src="./js/inspector.js"></script>
+    <script src="./js/python-bridge.js"></script>
+    <script src="./js/app.js"></script>
+</body>
+</html>
